@@ -5,27 +5,29 @@ import 'app.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Initialize Supabase Service
-  // This creates the single instance we will pass around the app
+  // 1. Initialize Supabase Service FIRST
   final supabaseService = SupabaseService();
-  await supabaseService.initialize();
+
+  try {
+    // We MUST await this. If this fails, the app cannot start.
+    await supabaseService.initialize();
+    debugPrint("Supabase Initialized Successfully");
+  } catch (e) {
+    debugPrint("CRITICAL ERROR: Supabase failed to initialize: $e");
+    // In a real app, you might show a fatal error screen here.
+  }
 
   // 2. Auth Guard Logic
-  // We check if a user session already exists before the app starts UI.
   String initialRoute = '/';
 
-  // Note: Since supabaseService.client might be null in your current placeholder,
-  // we add a safety check. In production, 'client' should be the SupabaseClient.
   try {
-    final currentUser = supabaseService.client?.auth.currentUser;
+    // Now it is safe to access .client because we waited for initialize()
+    final currentUser = supabaseService.client.auth.currentUser;
     if (currentUser != null) {
-      // User is already logged in, skip login screen
-      // Ideally, check here if they have a profile, if not -> '/profile'
       initialRoute = '/dashboard';
     }
   } catch (e) {
-    // If Supabase isn't configured, default to Login
-    debugPrint("Auth check failed: $e");
+    debugPrint("Auth check failed (User might be logged out): $e");
   }
 
   // 3. Run App

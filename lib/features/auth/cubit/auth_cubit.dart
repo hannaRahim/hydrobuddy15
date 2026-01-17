@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 import '../../../core/services/supabase_service.dart';
 import 'auth_state.dart';
 
@@ -10,38 +11,52 @@ class AuthCubit extends Cubit<AuthState> {
   /// Check if a user is already logged in (Persistent Session)
   Future<void> checkSession() async {
     try {
-      final user = _supabaseService.client?.auth.currentUser;
-      if (user != null) {
-        emit(AuthAuthenticated(user.id));
+      final session = _supabaseService.client.auth.currentSession;
+      if (session != null && session.user.id.isNotEmpty) {
+        emit(AuthAuthenticated(session.user.id));
       } else {
         emit(AuthUnauthenticated());
       }
     } catch (e) {
-      // If something breaks, assume logged out
       emit(AuthUnauthenticated());
     }
   }
 
   /// Login with email and password
+  /// Note: For this prototype, if Login fails, we try to Sign Up automatically.
   Future<void> login(String email, String password) async {
     emit(AuthLoading());
     try {
-      // Simulate network delay for better UX feel
-      await Future.delayed(const Duration(seconds: 1));
+      // 1. Try to Login
+      final response = await _supabaseService.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
 
-      // REAL LOGIN LOGIC:
-      // final response = await _supabaseService.client.auth.signInWithPassword(email: email, password: password);
-      // if (response.user != null) ...
-
-      // For prototype, we use a fixed ID
-      emit(const AuthAuthenticated('dummy_user_id_123'));
+      if (response.user != null) {
+        emit(AuthAuthenticated(response.user!.id));
+      }
+    } on AuthException catch (loginError) {
+      // 2. If Login fails (likely user doesn't exist), Try to Sign Up
+      try {
+        final response = await _supabaseService.client.auth.signUp(
+          email: email,
+          password: password,
+        );
+        if (response.user != null) {
+          emit(AuthAuthenticated(response.user!.id));
+        }
+      } catch (signUpError) {
+        // If both fail, show the original login error
+        emit(AuthError(loginError.message));
+      }
     } catch (e) {
-      emit(AuthError("Login failed: ${e.toString()}"));
+      emit(AuthError("An unexpected error occurred: $e"));
     }
   }
 
   Future<void> logout() async {
-    await _supabaseService.client?.auth.signOut();
+    await _supabaseService.client.auth.signOut();
     emit(AuthUnauthenticated());
   }
 }
