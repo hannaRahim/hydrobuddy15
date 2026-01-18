@@ -10,7 +10,7 @@ import 'profile/data/profile_repository.dart';
 import 'hydration/data/hydration_repository.dart';
 
 // Cubits
-import 'features/auth/cubit/auth_cubit.dart';
+import 'auth/cubit/auth_cubit.dart';
 import 'profile/cubit/profile_cubit.dart';
 import 'hydration/cubit/hydration_cubit.dart';
 

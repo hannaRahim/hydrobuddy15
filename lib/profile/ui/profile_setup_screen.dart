@@ -4,8 +4,8 @@ import '../../core/constants/hydration_rules.dart';
 import '../cubit/profile_cubit.dart';
 import '../cubit/profile_state.dart';
 import '../data/profile_model.dart';
-import '../../features/auth/cubit/auth_cubit.dart';
-import '../../features/auth/cubit/auth_state.dart';
+import '../../auth/cubit/auth_cubit.dart';
+import '../../auth/cubit/auth_state.dart';
 
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
