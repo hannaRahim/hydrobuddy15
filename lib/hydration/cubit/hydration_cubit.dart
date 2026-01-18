@@ -12,7 +12,8 @@ class HydrationCubit extends Cubit<HydrationState> {
     emit(HydrationLoading());
     try {
       final total = await _hydrationRepository.getTodayTotalIntake(userId);
-      emit(HydrationLoaded(total));
+      final hasUnsynced = await _hydrationRepository.hasUnsyncedData(userId);
+      emit(HydrationLoaded(total, hasUnsyncedData: hasUnsynced));
     } catch (e) {
       emit(HydrationError("Failed to load intake: $e"));
     }
@@ -26,8 +27,26 @@ class HydrationCubit extends Cubit<HydrationState> {
 
       // 2. Reload total to ensure consistency with DB
       await loadDailyIntake(userId);
+
+      syncData(userId);
     } catch (e) {
       emit(HydrationError("Failed to log water: $e"));
+    }
+  }
+  
+  /// Called by RefreshIndicator and after logging
+  Future<void> syncData(String userId) async {
+    try {
+      // Push local changes to Supabase
+      await _hydrationRepository.syncPendingLogs(userId);
+      // Refresh state (this will update the cloud icon to 'synced')
+      final total = await _hydrationRepository.getTodayTotalIntake(userId);
+      emit(HydrationLoaded(total, hasUnsyncedData: false));
+    } catch (e) {
+      // If sync fails, just reload local data to ensure UI is correct
+      // but keep hasUnsyncedData = true
+      final total = await _hydrationRepository.getTodayTotalIntake(userId);
+      emit(HydrationLoaded(total, hasUnsyncedData: true));
     }
   }
 
@@ -35,7 +54,7 @@ class HydrationCubit extends Cubit<HydrationState> {
   Future<void> resetIntake(String userId) async {
     try {
       await _hydrationRepository.resetTodayIntake(userId);
-      emit(const HydrationLoaded(0));
+      emit(const HydrationLoaded(0, hasUnsyncedData: false ));
     } catch (e) {
       emit(HydrationError("Failed to reset intake: $e"));
     }

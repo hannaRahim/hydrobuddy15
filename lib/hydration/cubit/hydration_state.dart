@@ -13,11 +13,12 @@ class HydrationLoading extends HydrationState {}
 
 class HydrationLoaded extends HydrationState {
   final int currentIntake;
+  final bool hasUnsyncedData;
 
-  const HydrationLoaded(this.currentIntake);
+  const HydrationLoaded(this.currentIntake, {this.hasUnsyncedData = false});
 
   @override
-  List<Object> get props => [currentIntake];
+  List<Object> get props => [currentIntake, hasUnsyncedData];
 }
 
 class HydrationError extends HydrationState {
