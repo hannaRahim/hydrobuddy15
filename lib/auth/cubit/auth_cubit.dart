@@ -10,6 +10,9 @@ class AuthCubit extends Cubit<AuthState> {
 
   Future<void> checkSession() async {
     try {
+      // Small delay ensures the SplashScreen listener is ready to catch the result
+      await Future.delayed(const Duration(milliseconds: 500));
+      
       final session = _supabaseService.client.auth.currentSession;
       if (session != null && session.user.id.isNotEmpty) {
         emit(AuthAuthenticated(session.user.id));
@@ -38,7 +41,7 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  // New: Dedicated Sign Up Method
+  /// Dedicated Sign Up Method
   Future<void> signUp(String email, String password) async {
     emit(AuthLoading());
     try {
@@ -47,8 +50,7 @@ class AuthCubit extends Cubit<AuthState> {
         password: password,
       );
       if (response.user != null) {
-        // Note: Check if email confirmation is enabled in your Supabase dashboard. 
-        // If enabled, the user won't be logged in immediately.
+        // If email confirmation is disabled in Supabase, the user is logged in immediately.
         emit(AuthAuthenticated(response.user!.id));
       }
     } on AuthException catch (e) {
@@ -59,7 +61,12 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   Future<void> logout() async {
-    await _supabaseService.client.auth.signOut();
-    emit(AuthUnauthenticated());
+    try {
+      await _supabaseService.client.auth.signOut();
+      // Explicitly emit unauthenticated so listeners react immediately
+      emit(AuthUnauthenticated());
+    } catch (e) {
+      emit(AuthUnauthenticated());
+    }
   }
 }
