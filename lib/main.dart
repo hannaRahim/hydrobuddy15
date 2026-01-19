@@ -10,6 +10,7 @@ import 'hydration/data/hydration_repository.dart';
 import 'auth/ui/splash_screen.dart';
 import 'auth/ui/login_screen.dart';
 import 'auth/ui/signup_screen.dart';
+import 'auth/ui/onboarding_screen.dart';
 import 'hydration/ui/dashboard_screen.dart';
 import 'profile/ui/profile_setup_screen.dart';
 import 'settings/ui/settings_screen.dart';
@@ -58,6 +59,7 @@ class HydroBuddyApp extends StatelessWidget {
         '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignUpScreen(),
+        '/onboarding': (context) => const OnboardingScreen(),
         '/dashboard': (context) => const DashboardScreen(),
         '/profile': (context) => const ProfileSetupScreen(),
         '/settings': (context) => const SettingsScreen(),

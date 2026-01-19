@@ -29,7 +29,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Access the current theme colors
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
+      // Optional: Remove AppBar if you want a full-screen look, or keep it simple
+      appBar: AppBar(
+        title: const Text("Welcome Back"),
+        backgroundColor: Colors.transparent,
+      ),
       body: BlocListener<AuthCubit, AuthState>(
         listener: (context, state) {
           if (state is AuthAuthenticated) {
@@ -47,15 +55,22 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(Icons.water_drop, size: 80, color: Theme.of(context).colorScheme.primary),
+                // --- CUSTOM LOGO IMAGE ---
+                Image.asset(
+                  'assets/logo.png', // Ensure this file exists in assets/images/
+                  width: 200,
+                  height: 200, 
+                ),
+                
                 const SizedBox(height: 24),
+                
                 Text(
-                  "Welcome Back!",
+                  "HydroBuddy",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 28,
+                    fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: primaryColor,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -64,7 +79,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey, fontSize: 16),
                 ),
+                
                 const SizedBox(height: 48),
+                
+                // --- EMAIL INPUT ---
                 TextField(
                   controller: _emailController,
                   decoration: const InputDecoration(
@@ -72,7 +90,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     prefixIcon: Icon(Icons.email_outlined),
                   ),
                 ),
+                
                 const SizedBox(height: 20),
+                
+                // --- PASSWORD INPUT ---
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
@@ -81,7 +102,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     prefixIcon: Icon(Icons.lock_outlined),
                   ),
                 ),
+                
                 const SizedBox(height: 32),
+                
+                // --- LOGIN BUTTON ---
                 BlocBuilder<AuthCubit, AuthState>(
                   builder: (context, state) {
                     if (state is AuthLoading) {
@@ -93,10 +117,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     );
                   },
                 ),
+                
                 const SizedBox(height: 24),
+                
+                // --- SIGN UP LINK (Goes to Onboarding) ---
                 TextButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/signup');
+                    // Navigate to Onboarding first, which then leads to Sign Up
+                    Navigator.pushNamed(context, '/onboarding');
                   },
                   child: RichText(
                     text: TextSpan(
@@ -106,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextSpan(
                           text: "Sign Up",
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
+                            color: primaryColor,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
