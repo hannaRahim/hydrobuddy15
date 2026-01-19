@@ -66,7 +66,6 @@ class LocalDatabaseService {
   Future<int> getTodayTotal(String userId) async {
     final db = await database;
     final now = DateTime.now();
-    // Simple string comparison for date matching (YYYY-MM-DD)
     final todayPrefix = now.toIso8601String().substring(0, 10);
 
     final result = await db.rawQuery('''
@@ -77,6 +76,22 @@ class LocalDatabaseService {
 
     if (result.first['total'] == null) return 0;
     return result.first['total'] as int;
+  }
+
+  // --- NEW: Fetch List of Today's Logs ---
+  Future<List<IntakeModel>> getTodayLogs(String userId) async {
+    final db = await database;
+    final now = DateTime.now();
+    final todayPrefix = now.toIso8601String().substring(0, 10);
+
+    final maps = await db.query(
+      'intake_logs',
+      where: 'user_id = ? AND timestamp LIKE "$todayPrefix%"',
+      whereArgs: [userId],
+      orderBy: 'timestamp DESC', // Show newest first
+    );
+
+    return maps.map((e) => IntakeModel.fromLocalJson(e)).toList();
   }
 
   Future<void> deleteTodayIntakes(String userId) async {

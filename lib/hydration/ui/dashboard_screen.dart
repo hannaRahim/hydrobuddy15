@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart'; // You might need to add intl to pubspec.yaml for time formatting
 import '../../auth/cubit/auth_cubit.dart';
 import '../../auth/cubit/auth_state.dart';
 import '../../profile/cubit/profile_cubit.dart';
 import '../../profile/cubit/profile_state.dart';
 import '../cubit/hydration_cubit.dart';
 import '../cubit/hydration_state.dart';
+import '../data/intake_model.dart';
 import '../../core/services/notification_service.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -53,7 +55,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // --- Logic to Show Custom Entry Dialog ---
+  // --- Custom Entry Dialog ---
   void _showCustomEntryDialog(BuildContext context, String userId) {
     _customIntakeController.clear();
     showDialog(
@@ -104,6 +106,83 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // --- HISTORY BOTTOM SHEET ---
+  void _showHistorySheet(BuildContext context, List<IntakeModel> history) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true, // Allow it to expand
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          minChildSize: 0.3,
+          maxChildSize: 0.8,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Today's History",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: history.isEmpty
+                        ? Center(
+                            child: Text("No logs yet today.",
+                                style: TextStyle(color: Colors.grey.shade500)),
+                          )
+                        : ListView.separated(
+                            controller: scrollController,
+                            itemCount: history.length,
+                            separatorBuilder: (_, __) => const Divider(),
+                            itemBuilder: (context, index) {
+                              final item = history[index];
+                              // Simple date formatting
+                              final timeStr = DateFormat('h:mm a').format(item.timestamp);
+                              return ListTile(
+                                leading: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.shade50,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.local_drink,
+                                      color: Colors.blue, size: 20),
+                                ),
+                                title: Text("${item.amountMl} ml",
+                                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text(timeStr),
+                                trailing: item.isSynced
+                                    ? const Icon(Icons.cloud_done, size: 16, color: Colors.green)
+                                    : const Icon(Icons.cloud_upload, size: 16, color: Colors.orange),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,9 +199,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Text(
               "HydroBuddy",
               style: TextStyle(
-                color: Theme.of(context).primaryColor, 
-                fontWeight: FontWeight.bold
-              ),
+                  color: Theme.of(context).primaryColor,
+                  fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -197,88 +275,101 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildDashboardContent(BuildContext context, int dailyGoal) {
     final theme = Theme.of(context);
-    
+
     return BlocBuilder<HydrationCubit, HydrationState>(
       builder: (context, hydrationState) {
         int currentIntake = 0;
+        List<IntakeModel> history = [];
+        
         if (hydrationState is HydrationLoaded) {
           currentIntake = hydrationState.currentIntake;
+          history = hydrationState.history;
         }
+        
         double progress = (currentIntake / dailyGoal).clamp(0.0, 1.0);
         int percentage = (progress * 100).toInt();
 
-        // Safe User ID retrieval for logging
         final userId = context.read<AuthCubit>().state is AuthAuthenticated
             ? (context.read<AuthCubit>().state as AuthAuthenticated).userId
             : '';
 
         return Column(
           children: [
-            // --- 1. Large Circular Tracker ---
-            Container(
-              height: 300,
-              width: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.blue.withOpacity(0.1),
-                    blurRadius: 30,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Background Circle
-                  SizedBox(
-                    height: 250,
-                    width: 250,
-                    child: CircularProgressIndicator(
-                      value: 1.0,
-                      strokeWidth: 20,
-                      color: Colors.grey.shade100,
+            // --- 1. Large Circular Tracker (Now Clickable) ---
+            GestureDetector(
+              onTap: () => _showHistorySheet(context, history),
+              child: Container(
+                height: 300,
+                width: 300,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withOpacity(0.1),
+                      blurRadius: 30,
+                      offset: const Offset(0, 10),
                     ),
-                  ),
-                  // Progress Circle
-                  SizedBox(
-                    height: 250,
-                    width: 250,
-                    child: CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 20,
-                      strokeCap: StrokeCap.round,
-                      backgroundColor: Colors.transparent,
-                      color: theme.primaryColor,
+                  ],
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      height: 250,
+                      width: 250,
+                      child: CircularProgressIndicator(
+                        value: 1.0,
+                        strokeWidth: 20,
+                        color: Colors.grey.shade100,
+                      ),
                     ),
-                  ),
-                  // Center Text
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.water_drop, size: 40, color: theme.primaryColor),
-                      const SizedBox(height: 8),
-                      Text(
-                        "$percentage%",
-                        style: TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: theme.primaryColor,
-                        ),
+                    SizedBox(
+                      height: 250,
+                      width: 250,
+                      child: CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 20,
+                        strokeCap: StrokeCap.round,
+                        backgroundColor: Colors.transparent,
+                        color: theme.primaryColor,
                       ),
-                      Text(
-                        "$currentIntake / $dailyGoal ml",
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w500,
+                    ),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.water_drop, size: 40, color: theme.primaryColor),
+                        const SizedBox(height: 8),
+                        Text(
+                          "$percentage%",
+                          style: TextStyle(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            color: theme.primaryColor,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        Text(
+                          "$currentIntake / $dailyGoal ml",
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Visual cue that it's clickable
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12)
+                          ),
+                          child: const Text("Tap for History", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                        )
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
 
