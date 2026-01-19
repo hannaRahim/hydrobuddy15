@@ -6,7 +6,7 @@ import '../../profile/cubit/profile_cubit.dart';
 import '../../profile/cubit/profile_state.dart';
 import '../cubit/hydration_cubit.dart';
 import '../cubit/hydration_state.dart';
-import '../../core/services/notification_service.dart'; // Import Notification Service
+import '../../core/services/notification_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,6 +17,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final NotificationService _notificationService = NotificationService();
+  final TextEditingController _customIntakeController = TextEditingController();
 
   @override
   void initState() {
@@ -25,9 +26,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _setupNotifications();
   }
 
+  @override
+  void dispose() {
+    _customIntakeController.dispose();
+    super.dispose();
+  }
+
   void _setupNotifications() async {
     await _notificationService.initialize();
-    // Schedule a reminder (e.g., daily at 10am)
     _notificationService.schedulePeriodicWaterReminder();
   }
 
@@ -47,21 +53,98 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // --- Logic to Show Custom Entry Dialog ---
+  void _showCustomEntryDialog(BuildContext context, String userId) {
+    _customIntakeController.clear();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Add Custom Amount"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.water_drop, size: 40, color: Colors.blue),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _customIntakeController,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              decoration: InputDecoration(
+                hintText: "0",
+                suffixText: "ml",
+                filled: true,
+                fillColor: Colors.blue.shade50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final amount = int.tryParse(_customIntakeController.text);
+              if (amount != null && amount > 0) {
+                context.read<HydrationCubit>().logIntake(userId, amount);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text("Add Water"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text("Dashboard"),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.water_drop_rounded, color: Theme.of(context).primaryColor),
+            const SizedBox(width: 8),
+            Text(
+              "HydroBuddy",
+              style: TextStyle(
+                color: Theme.of(context).primaryColor, 
+                fontWeight: FontWeight.bold
+              ),
+            ),
+          ],
+        ),
         actions: [
-          // NEW: Sync Status Icon
           BlocBuilder<HydrationCubit, HydrationState>(
             builder: (context, state) {
               if (state is HydrationLoaded) {
                 return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Icon(
-                    state.hasUnsyncedData ? Icons.cloud_upload : Icons.cloud_done,
-                    color: state.hasUnsyncedData ? Colors.orange : Colors.green,
+                  padding: const EdgeInsets.only(right: 12.0),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: state.hasUnsyncedData
+                          ? Colors.orange.shade50
+                          : Colors.green.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      state.hasUnsyncedData ? Icons.cloud_upload : Icons.cloud_done,
+                      color: state.hasUnsyncedData ? Colors.orange : Colors.green,
+                      size: 20,
+                    ),
                   ),
                 );
               }
@@ -69,10 +152,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.pushNamed(context, '/settings');
-            },
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.pushNamed(context, '/settings'),
           ),
         ],
       ),
@@ -91,16 +172,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             if (profileState is ProfileLoading) {
               return const Center(child: CircularProgressIndicator());
             } else if (profileState is ProfileLoaded) {
-              // Wrap content in RefreshIndicator for Pull-to-Refresh Sync
               return RefreshIndicator(
                 onRefresh: () async {
                   final authState = context.read<AuthCubit>().state;
                   if (authState is AuthAuthenticated) {
-                     await context.read<HydrationCubit>().syncData(authState.userId);
+                    await context.read<HydrationCubit>().syncData(authState.userId);
                   }
                 },
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                   child: _buildDashboardContent(context, profileState.profile.dailyGoal),
                 ),
               );
@@ -115,6 +196,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildDashboardContent(BuildContext context, int dailyGoal) {
+    final theme = Theme.of(context);
+    
     return BlocBuilder<HydrationCubit, HydrationState>(
       builder: (context, hydrationState) {
         int currentIntake = 0;
@@ -122,48 +205,168 @@ class _DashboardScreenState extends State<DashboardScreen> {
           currentIntake = hydrationState.currentIntake;
         }
         double progress = (currentIntake / dailyGoal).clamp(0.0, 1.0);
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  children: [
-                    const Text("Today's Hydration", style: TextStyle(fontSize: 16)),
-                    const SizedBox(height: 10),
-                    Text("$currentIntake / $dailyGoal ml",
-                        style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue)),
-                    const SizedBox(height: 20),
-                    LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 15,
-                        backgroundColor: Colors.white,
-                        borderRadius: BorderRadius.circular(10)),
-                  ],
-                ),
+        int percentage = (progress * 100).toInt();
+
+        // Safe User ID retrieval for logging
+        final userId = context.read<AuthCubit>().state is AuthAuthenticated
+            ? (context.read<AuthCubit>().state as AuthAuthenticated).userId
+            : '';
+
+        return Column(
+          children: [
+            // --- 1. Large Circular Tracker ---
+            Container(
+              height: 300,
+              width: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.1),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
-              const SizedBox(height: 40),
-              const Text("Quick Add",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 20),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                _WaterButton(amount: 250, label: "Small Cup\n(250ml)"),
-                _WaterButton(amount: 500, label: "Bottle\n(500ml)"),
-              ]),
-              const SizedBox(height: 20),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                _WaterButton(amount: 750, label: "Large Bottle\n(750ml)"),
-              ]),
-            ],
-          ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Background Circle
+                  SizedBox(
+                    height: 250,
+                    width: 250,
+                    child: CircularProgressIndicator(
+                      value: 1.0,
+                      strokeWidth: 20,
+                      color: Colors.grey.shade100,
+                    ),
+                  ),
+                  // Progress Circle
+                  SizedBox(
+                    height: 250,
+                    width: 250,
+                    child: CircularProgressIndicator(
+                      value: progress,
+                      strokeWidth: 20,
+                      strokeCap: StrokeCap.round,
+                      backgroundColor: Colors.transparent,
+                      color: theme.primaryColor,
+                    ),
+                  ),
+                  // Center Text
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.water_drop, size: 40, color: theme.primaryColor),
+                      const SizedBox(height: 8),
+                      Text(
+                        "$percentage%",
+                        style: TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: theme.primaryColor,
+                        ),
+                      ),
+                      Text(
+                        "$currentIntake / $dailyGoal ml",
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 40),
+
+            // --- 2. Custom Add Button (+) ---
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _showCustomEntryDialog(context, userId),
+                    borderRadius: BorderRadius.circular(30),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: theme.primaryColor,
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.primaryColor.withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text(
+                            "Add Water",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 30),
+
+            // --- 3. Quick Add Buttons (Below) ---
+            const Text(
+              "Quick Add",
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _WaterButton(
+                  amount: 250, 
+                  label: "Cup", 
+                  icon: Icons.local_cafe_outlined,
+                  onTap: () => context.read<HydrationCubit>().logIntake(userId, 250),
+                ),
+                const SizedBox(width: 20),
+                _WaterButton(
+                  amount: 500, 
+                  label: "Bottle", 
+                  icon: Icons.local_drink_outlined,
+                  onTap: () => context.read<HydrationCubit>().logIntake(userId, 500),
+                ),
+                const SizedBox(width: 20),
+                _WaterButton(
+                  amount: 750, 
+                  label: "Jug", 
+                  icon: Icons.water_drop_outlined,
+                  onTap: () => context.read<HydrationCubit>().logIntake(userId, 750),
+                ),
+              ],
+            ),
+          ],
         );
       },
     );
@@ -173,35 +376,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
 class _WaterButton extends StatelessWidget {
   final int amount;
   final String label;
-  const _WaterButton({required this.amount, required this.label});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _WaterButton({
+    required this.amount, 
+    required this.label, 
+    required this.icon,
+    required this.onTap,
+  });
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {
-        final userId = context.read<AuthCubit>().state is AuthAuthenticated
-            ? (context.read<AuthCubit>().state as AuthAuthenticated).userId
-            : 'dummy_user_id_123';
-        context.read<HydrationCubit>().logIntake(userId, amount);
-      },
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 120,
-        height: 120,
+        width: 80,
+        padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(15),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5))
-            ],
-            border: Border.all(color: Colors.blue.withOpacity(0.2))),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.local_drink, color: Colors.blue, size: 30),
-          const SizedBox(height: 8),
-          Text(label,
-              textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
-        ]),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.blue.shade100),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            )
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: Colors.blue.shade300, size: 28),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            Text("$amount ml", style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+          ],
+        ),
       ),
     );
   }

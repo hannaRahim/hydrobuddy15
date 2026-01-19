@@ -1,5 +1,7 @@
+import 'dart:math';
+
 class HydrationRules {
-  // --- Dropdown Options (Strictly Defined) ---
+  // --- Dropdown Options ---
 
   static const List<String> ageRanges = ['18-30', '31-50', '51-65', '65+'];
 
@@ -16,66 +18,97 @@ class HydrationRules {
     'Active', // Intense exercise 4+ days/week
   ];
 
+  // Updated Health Conditions based on the provided chart
   static const List<String> healthConditions = [
-    'None',
-    'Diabetes', // May require specific hydration monitoring
-    'Dengue', // Requires increased hydration
+    'Normal healthy adult',
+    'Kidney stones',
+    'Urinary tract infection (UTI)',
+    'Constipation',
+    'High blood pressure (controlled)',
+    'Liver disease (fluid retention)',
+    'Heart problems / heart failure',
+    'Kidney disease',
   ];
 
   // --- Rule-Based Calculation ---
 
   /// Determines the daily water intake goal (in ml) based on profile selections.
-  /// This is a deterministic lookup, NOT an AI prediction.
   static int getDailyGoal({
     required String ageRange,
     required String weightRange,
     required String activityLevel,
     required String healthCondition,
   }) {
-    int baseIntake = 2000; // Base: 2 Liters
+    // 1. Calculate the "Standard" metabolic need first
+    int baseCalculation = 2000; // Base: 2 Liters
 
-    // 1. Weight Adjustment
+    // Weight Adjustment
     switch (weightRanges.indexOf(weightRange)) {
-      case 0:
-        baseIntake += 0;
-        break; // <50kg
-      case 1:
-        baseIntake += 500;
-        break; // 50-70kg
-      case 2:
-        baseIntake += 750;
-        break; // 71-90kg
-      case 3:
-        baseIntake += 1000;
-        break; // >90kg
+      case 0: baseCalculation += 0; break;    // <50kg
+      case 1: baseCalculation += 500; break;  // 50-70kg
+      case 2: baseCalculation += 750; break;  // 71-90kg
+      case 3: baseCalculation += 1000; break; // >90kg
     }
 
-    // 2. Activity Adjustment
+    // Activity Adjustment
     if (activityLevel == 'Moderately Active') {
-      baseIntake += 500;
+      baseCalculation += 500;
     } else if (activityLevel == 'Active') {
-      baseIntake += 1000;
+      baseCalculation += 1000;
     }
 
-    // 3. Age Adjustment (Metabolism slows with age)
+    // Age Adjustment (Metabolism slows with age)
     if (ageRange == '65+') {
-      baseIntake -= 250;
+      baseCalculation -= 250;
     }
 
-    // 4. Health Condition Overrides (Critical Rules)
-    if (healthCondition == 'Dengue') {
-      // Dengue recovery requires significant fluids
-      // If calculated is less than 3500, boost it.
-      if (baseIntake < 3500) return 3500;
+    // 2. Apply Health Condition Rules
+    
+    // CASE A: Strict Medical Restrictions (Safety First)
+    // These conditions require fluid restriction regardless of weight/activity.
+    // We use the upper bound of the recommended range to be safe but sufficient.
+    
+    if (healthCondition == 'Kidney disease') {
+      return 1000; // Range: 500-1000 ml
+    }
+    
+    if (healthCondition == 'Heart problems / heart failure') {
+      return 1500; // Range: 1000-1500 ml
+    }
+    
+    if (healthCondition == 'Liver disease (fluid retention)') {
+      return 1500; // Range: 1000-1500 ml
     }
 
-    // Diabetes rule: Standard intake is usually fine, but cap strict upper limits
-    // to avoid over-hydration strain if kidney issues exist (simplified rule).
-    // For this app scope, we maintain calculated base or cap at 4000ml.
-    if (healthCondition == 'Diabetes' && baseIntake > 4000) {
-      return 4000;
+    // CASE B: Controlled Limits
+    if (healthCondition == 'High blood pressure (controlled)') {
+      // Range: 1500-2000 ml. We cap strictly at 2000.
+      return 2000;
     }
 
-    return baseIntake;
+    // CASE C: High Intake Requirements
+    // For these, we ensure the intake is AT LEAST the recommended amount.
+    // If the user's calculated need is higher (e.g. big athlete), we keep the higher value.
+    
+    if (healthCondition == 'Constipation') {
+      // Range: 2500-3000 ml. Minimum target 3000.
+      return max(baseCalculation, 3000); 
+    }
+    
+    if (healthCondition == 'Urinary tract infection (UTI)') {
+      // Range: 2500-3000 ml. Minimum target 3000.
+      return max(baseCalculation, 3000);
+    }
+    
+    if (healthCondition == 'Kidney stones') {
+      // Range: 3000-3500 ml. Minimum target 3500 to help flush stones.
+      return max(baseCalculation, 3500);
+    }
+
+    // CASE D: Normal Healthy Adult
+    // Range: 2000-2500 ml. 
+    // We use the calculated metabolic need (baseCalculation) but ensure it's at least 2000.
+    // This allows active/heavier users to get more than 2500 if needed.
+    return max(baseCalculation, 2000);
   }
 }

@@ -14,7 +14,6 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // TRIGGER: Check if user exists as soon as this screen loads
     context.read<AuthCubit>().checkSession();
   }
 
@@ -23,24 +22,42 @@ class _SplashScreenState extends State<SplashScreen> {
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
-          // Success -> Go to Dashboard
           Navigator.pushReplacementNamed(context, '/dashboard');
         } else if (state is AuthUnauthenticated) {
-          // No User -> Go to Login
           Navigator.pushReplacementNamed(context, '/login');
         }
       },
-      child: const Scaffold(
-        backgroundColor: Colors.blue,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Use a white logo and spinner for a clean look
-              Icon(Icons.water_drop, size: 80, color: Colors.white),
-              SizedBox(height: 20),
-              CircularProgressIndicator(color: Colors.white),
-            ],
+      child: Scaffold(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Theme.of(context).colorScheme.primary,
+                Theme.of(context).colorScheme.secondary,
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.water_drop, size: 100, color: Colors.white),
+                SizedBox(height: 24),
+                Text(
+                  "HydroBuddy",
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                SizedBox(height: 48),
+                CircularProgressIndicator(color: Colors.white),
+              ],
+            ),
           ),
         ),
       ),
