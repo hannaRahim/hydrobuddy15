@@ -4,6 +4,8 @@ import '../../auth/cubit/auth_cubit.dart';
 import '../../auth/cubit/auth_state.dart';
 import '../../profile/cubit/profile_cubit.dart';
 import '../../profile/cubit/profile_state.dart';
+import '../../core/services/notification_service.dart';
+import '../../core/services/local_database_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -14,6 +16,51 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _remindersEnabled = true;
+  final NotificationService _notificationService = NotificationService();
+  final LocalDatabaseService _dbService = LocalDatabaseService();
+  
+  List<TimeOfDay> _selectedTimes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedSettings();
+  }
+
+  Future<void> _loadSavedSettings() async {
+    await _notificationService.initialize();
+    final savedTimes = await _dbService.getNotificationTimes();
+    setState(() {
+      _selectedTimes = savedTimes;
+    });
+    _updateNotifications();
+  }
+
+  void _updateNotifications() {
+    if (_remindersEnabled) {
+      _notificationService.schedulePeriodicWaterReminder(_selectedTimes);
+    } else {
+      _notificationService.cancelAllReminders();
+    }
+    // Persist to database
+    _dbService.saveNotificationTimes(_selectedTimes);
+  }
+
+  Future<void> _pickTime() async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (picked != null && !_selectedTimes.contains(picked)) {
+      setState(() {
+        _selectedTimes.add(picked);
+        _selectedTimes.sort((a, b) => a.hour.compareTo(b.hour) == 0 
+            ? a.minute.compareTo(b.minute) 
+            : a.hour.compareTo(b.hour));
+      });
+      _updateNotifications();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,9 +69,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: BlocListener<AuthCubit, AuthState>(
         listener: (context, state) {
           if (state is AuthUnauthenticated) {
-            // FIX: Navigate directly to /login.
-            // Navigating to '/' (Splash) would cause a loop/hang because the 
-            // state is already Unauthenticated, so the Splash listener wouldn't fire.
             Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
           }
         },
@@ -36,7 +80,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text("My Profile", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             
-            // Profile Card
             BlocBuilder<ProfileCubit, ProfileState>(
               builder: (context, state) {
                 if (state is ProfileLoaded) {
@@ -69,7 +112,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text("Preferences", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
 
-            // Settings Group
             Card(
               child: Column(
                 children: [
@@ -80,11 +122,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     value: _remindersEnabled,
                     activeColor: Theme.of(context).colorScheme.primary,
                     onChanged: (bool value) {
-                      setState(() {
-                        _remindersEnabled = value;
-                      });
+                      setState(() => _remindersEnabled = value);
+                      _updateNotifications();
                     },
                   ),
+                  if (_remindersEnabled) ...[
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text("Reminder Schedule", 
+                                  style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
+                              TextButton.icon(
+                                onPressed: _pickTime,
+                                icon: const Icon(Icons.add, size: 18),
+                                label: const Text("Add Time"),
+                              ),
+                            ],
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            children: _selectedTimes.map((time) => Chip(
+                              label: Text(time.format(context)),
+                              onDeleted: () {
+                                setState(() => _selectedTimes.remove(time));
+                                _updateNotifications();
+                              },
+                            )).toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

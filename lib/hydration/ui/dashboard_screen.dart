@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart'; // You might need to add intl to pubspec.yaml for time formatting
+import 'package:intl/intl.dart'; 
 import '../../auth/cubit/auth_cubit.dart';
 import '../../auth/cubit/auth_state.dart';
 import '../../profile/cubit/profile_cubit.dart';
@@ -9,6 +9,7 @@ import '../cubit/hydration_cubit.dart';
 import '../cubit/hydration_state.dart';
 import '../data/intake_model.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/services/local_database_service.dart'; //
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -19,6 +20,8 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final NotificationService _notificationService = NotificationService();
+  // FIX: Added the missing _dbService identifier
+  final LocalDatabaseService _dbService = LocalDatabaseService(); //
   final TextEditingController _customIntakeController = TextEditingController();
 
   @override
@@ -35,8 +38,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _setupNotifications() async {
-    await _notificationService.initialize();
-    _notificationService.schedulePeriodicWaterReminder();
+    await _notificationService.initialize(); //
+    // Load saved times from DB so notifications stay active and persistent
+    final savedTimes = await _dbService.getNotificationTimes(); //
+    _notificationService.schedulePeriodicWaterReminder(savedTimes); //
   }
 
   void _initializeData() async {
@@ -55,7 +60,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // --- Custom Entry Dialog ---
+  // --- UI Methods (Unchanged) ---
   void _showCustomEntryDialog(BuildContext context, String userId) {
     _customIntakeController.clear();
     showDialog(
@@ -106,12 +111,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // --- HISTORY BOTTOM SHEET ---
   void _showHistorySheet(BuildContext context, List<IntakeModel> history) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      isScrollControlled: true, // Allow it to expand
+      isScrollControlled: true,
       builder: (context) {
         return DraggableScrollableSheet(
           initialChildSize: 0.5,
@@ -152,7 +156,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             separatorBuilder: (_, __) => const Divider(),
                             itemBuilder: (context, index) {
                               final item = history[index];
-                              // Simple date formatting
                               final timeStr = DateFormat('h:mm a').format(item.timestamp);
                               return ListTile(
                                 leading: Container(
@@ -295,7 +298,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         return Column(
           children: [
-            // --- 1. Large Circular Tracker (Now Clickable) ---
             GestureDetector(
               onTap: () => _showHistorySheet(context, history),
               child: Container(
@@ -357,7 +359,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        // Visual cue that it's clickable
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
@@ -372,10 +373,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 40),
-
-            // --- 2. Custom Add Button (+) ---
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -417,10 +415,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-
             const SizedBox(height: 30),
-
-            // --- 3. Quick Add Buttons (Below) ---
             const Text(
               "Quick Add",
               style: TextStyle(
@@ -431,7 +426,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

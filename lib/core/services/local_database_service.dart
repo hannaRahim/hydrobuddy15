@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:flutter/material.dart'; // Required for TimeOfDay
 import '../../hydration/data/intake_model.dart';
 
 class LocalDatabaseService {
@@ -22,7 +23,7 @@ class LocalDatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Incremented version to handle the new table
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE intake_logs(
@@ -34,9 +35,58 @@ class LocalDatabaseService {
             is_synced INTEGER NOT NULL DEFAULT 0
           )
         ''');
+        
+        // Create table for persistent notification times
+        await db.execute('''
+          CREATE TABLE notification_settings(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hour INTEGER NOT NULL,
+            minute INTEGER NOT NULL
+          )
+        ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('''
+            CREATE TABLE notification_settings(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              hour INTEGER NOT NULL,
+              minute INTEGER NOT NULL
+            )
+          ''');
+        }
       },
     );
   }
+
+  // --- Notification Persistence Methods ---
+
+  Future<void> saveNotificationTimes(List<TimeOfDay> times) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      // Clear old times and insert current list to keep it synced
+      await txn.delete('notification_settings');
+      for (var time in times) {
+        await txn.insert('notification_settings', {
+          'hour': time.hour,
+          'minute': time.minute,
+        });
+      }
+    });
+  }
+
+  Future<List<TimeOfDay>> getNotificationTimes() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('notification_settings');
+    
+    if (maps.isEmpty) {
+      return [const TimeOfDay(hour: 8, minute: 0)]; // Default if none saved
+    }
+
+    return maps.map((m) => TimeOfDay(hour: m['hour'], minute: m['minute'])).toList();
+  }
+
+  // --- Existing Intake Methods ---
 
   Future<int> insertIntake(IntakeModel intake) async {
     final db = await database;
@@ -78,7 +128,6 @@ class LocalDatabaseService {
     return result.first['total'] as int;
   }
 
-  // --- NEW: Fetch List of Today's Logs ---
   Future<List<IntakeModel>> getTodayLogs(String userId) async {
     final db = await database;
     final now = DateTime.now();
@@ -88,7 +137,7 @@ class LocalDatabaseService {
       'intake_logs',
       where: 'user_id = ? AND timestamp LIKE "$todayPrefix%"',
       whereArgs: [userId],
-      orderBy: 'timestamp DESC', // Show newest first
+      orderBy: 'timestamp DESC',
     );
 
     return maps.map((e) => IntakeModel.fromLocalJson(e)).toList();

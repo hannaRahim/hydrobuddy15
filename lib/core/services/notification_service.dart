@@ -1,6 +1,8 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter/material.dart';
+import 'dart:io';
 
 class NotificationService {
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
@@ -8,6 +10,19 @@ class NotificationService {
 
   Future<void> initialize() async {
     tz.initializeTimeZones();
+
+    if (Platform.isAndroid) {
+      final androidImplementation = _flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      
+      // Request standard notification permission (Android 13+)
+      await androidImplementation?.requestNotificationsPermission();
+      
+      // Request Exact Alarm permission (Android 13+)
+      // This is often why the "1-minute test" fails on emulators
+      await androidImplementation?.requestExactAlarmsPermission();
+    }
 
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -23,12 +38,26 @@ class NotificationService {
     await _flutterLocalNotificationsPlugin.initialize(initializationSettings);
   }
 
-  Future<void> schedulePeriodicWaterReminder() async {
+  /// Reverted name: schedulePeriodicWaterReminder
+  Future<void> schedulePeriodicWaterReminder(List<TimeOfDay> times) async {
+    await cancelAllReminders();
+
+    for (int i = 0; i < times.length; i++) {
+      final time = times[i];
+      await _scheduleAtSpecificTime(i, time.hour, time.minute);
+    }
+  }
+
+  Future<void> cancelAllReminders() async {
+    await _flutterLocalNotificationsPlugin.cancelAll();
+  }
+
+  Future<void> _scheduleAtSpecificTime(int id, int hour, int minute) async {
     await _flutterLocalNotificationsPlugin.zonedSchedule(
-      0,
+      id,
       'Time to Hydrate!',
       'Stay healthy and drink some water now.',
-      _nextInstanceOfTime(10), // Example: 10:00 AM every day, or strictly periodic
+      _nextInstanceOfTime(hour, minute),
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'hydration_channel',
@@ -36,6 +65,7 @@ class NotificationService {
           channelDescription: 'Reminds you to drink water',
           importance: Importance.max,
           priority: Priority.high,
+          fullScreenIntent: true, // Helps wake up the emulator
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -43,14 +73,13 @@ class NotificationService {
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
-    
-    // You can add more schedules here (e.g., every 2 hours)
   }
 
-  tz.TZDateTime _nextInstanceOfTime(int hour) {
+  tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {
     final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
     tz.TZDateTime scheduledDate =
-        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+    
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
