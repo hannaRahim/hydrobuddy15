@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/services/supabase_service.dart';
-import 'core/theme/app_theme.dart'; // <--- IMPORT THIS
+import 'core/theme/app_theme.dart'; 
 import 'auth/cubit/auth_cubit.dart';
 import 'profile/cubit/profile_cubit.dart';
 import 'profile/data/profile_repository.dart';
@@ -50,9 +50,7 @@ class HydroBuddyApp extends StatelessWidget {
       title: 'Hydro Buddy',
       debugShowCheckedModeBanner: false,
       
-      // --- FIX: Use your custom light blue theme here ---
       theme: AppTheme.lightTheme, 
-      // -------------------------------------------------
 
       initialRoute: '/',
       routes: {
